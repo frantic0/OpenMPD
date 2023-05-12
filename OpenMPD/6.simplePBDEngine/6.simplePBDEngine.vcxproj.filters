@@ -7,4 +7,7 @@
     <ClCompile Include="testEnginePerformance.cpp" />
     <ClCompile Include="exampleHapticsSTM.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="6.simplePBDEngine.vcxproj.user" />
+  </ItemGroup>
 </Project>

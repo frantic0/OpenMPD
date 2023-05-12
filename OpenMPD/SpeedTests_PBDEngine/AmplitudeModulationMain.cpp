@@ -14,14 +14,15 @@ void writeArrayToCSV(std::string fileName, float* data, int dataSize);
 // variables
 unsigned char curFPS_Divider = 4;
 cl_uint geometries = 32;
-cl_uint topBoard = 0;
-cl_uint bottomBoard = 46;
+cl_uint topBoard = NULL;
+cl_uint bottomBoard = 6;
 bool foceSync = true;
 bool phaseOnly = false;
 bool HW_Sync = true;
 // it must be a .wav file. this file should be stored on the LIBS_HOME/bin/x64
 std::string fileName = "Chirp100_5000"; 
 int numPrimitives = 1;
+float matToWorld[] = { 1,0,0,0,  0,1,0,0,   0,0,1,0,   0,0,0,1 };
 
 int main() {
 	do {
@@ -29,7 +30,10 @@ int main() {
 			OpenMPD_CWrapper_Initialize();
 			OpenMPD_CWrapper_RegisterPrintFuncs(print, print, print);
 			OpenMPD_CWrapper_SetupEngine(2000000, OpenMPD::GSPAT_SOLVER::IBP);
-			OpenMPD_Context_Handler  pm = OpenMPD_CWrapper_StartEngine_TopBottom(curFPS_Divider, geometries, topBoard, bottomBoard, foceSync);
+			float matToWorld[] = { 1,0,0,0,  0,1,0,0,   0,0,1,0,   0,0,0,1 };
+			OpenMPD_Context_Handler  pm = OpenMPD_CWrapper_StartEngine_SingleBoard(curFPS_Divider, 32, 6, matToWorld, false);
+			//OpenMPD_Context_Handler pm = OpenMPD_CWrapper_StartEngine_SingleBoard(curFPS_Divider, geometries, bottomBoard, matToWorld, foceSync);
+			//OpenMPD_Context_Handler  pm = OpenMPD_CWrapper_StartEngine_TopBottom(curFPS_Divider, geometries, topBoard, bottomBoard, foceSync);
 			OpenMPD_CWrapper_SetupPhaseOnly(phaseOnly);
 			OpenMPD_CWrapper_SetupHardwareSync(HW_Sync);
 			client((void*)pm);
@@ -125,8 +129,8 @@ void* client(void* arg) {
 				printf("Start amplitude modulation!\n");
 				OpenMPD_CWrapper_RegisterPrintFuncs(NULL, NULL, NULL);
 				for (int p = 0; p < numPrimitives; p++) {
-					OpenMPD_CWrapper_updatePrimitive_Amplitudes(pm, primitives[p], modulatedAmplitudes[0], 0);
-					//OpenMPD_CWrapper_updatePrimitive_Amplitudes(pm, primitives[p], amplitudes[0], 0);
+					//OpenMPD_CWrapper_updatePrimitive_Amplitudes(pm, primitives[p], modulatedAmplitudes[0], 0);
+					OpenMPD_CWrapper_updatePrimitive_Amplitudes(pm, primitives[p], amplitudes[0], 0);
 				}
 
 				OpenMPD_CWrapper_commitUpdates(pm);

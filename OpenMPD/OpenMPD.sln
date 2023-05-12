@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26730.15
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.33423.256
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Examples", "Examples", "{C4460ED9-A862-4D03-8D61-9B1CC81BCE13}"
 EndProject
@@ -29,6 +29,12 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GL_RenderingPlugin", "GL_Re
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OpenMPD", "OpenMPD_Engine\OpenMPD.vcxproj", "{1929EA4B-8984-4D1F-92B3-876191651F05}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HapticAudio", "HapticAudio\HapticAudio.vcxproj", "{EB5BF494-40D5-45A8-B041-64AEAA65C27E}"
+	ProjectSection(ProjectDependencies) = postProject
+		{1929EA4B-8984-4D1F-92B3-876191651F05} = {1929EA4B-8984-4D1F-92B3-876191651F05}
+		{F7CFEF5A-54BD-42E8-A59E-54ABAEB4EA9C} = {F7CFEF5A-54BD-42E8-A59E-54ABAEB4EA9C}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -65,6 +71,14 @@ Global
 		{1929EA4B-8984-4D1F-92B3-876191651F05}.Release|x64.Build.0 = Debug|x64
 		{1929EA4B-8984-4D1F-92B3-876191651F05}.Release|x86.ActiveCfg = Debug|x64
 		{1929EA4B-8984-4D1F-92B3-876191651F05}.Release|x86.Build.0 = Debug|x64
+		{EB5BF494-40D5-45A8-B041-64AEAA65C27E}.Debug|x64.ActiveCfg = Debug|x64
+		{EB5BF494-40D5-45A8-B041-64AEAA65C27E}.Debug|x64.Build.0 = Debug|x64
+		{EB5BF494-40D5-45A8-B041-64AEAA65C27E}.Debug|x86.ActiveCfg = Debug|Win32
+		{EB5BF494-40D5-45A8-B041-64AEAA65C27E}.Debug|x86.Build.0 = Debug|Win32
+		{EB5BF494-40D5-45A8-B041-64AEAA65C27E}.Release|x64.ActiveCfg = Release|x64
+		{EB5BF494-40D5-45A8-B041-64AEAA65C27E}.Release|x64.Build.0 = Release|x64
+		{EB5BF494-40D5-45A8-B041-64AEAA65C27E}.Release|x86.ActiveCfg = Release|Win32
+		{EB5BF494-40D5-45A8-B041-64AEAA65C27E}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -76,6 +90,7 @@ Global
 		{ABEDF3EB-5A3A-4E44-9863-7DBBF14E0579} = {A859EB9A-BC1C-4980-B52B-C7D8470BE609}
 		{F7CFEF5A-54BD-42E8-A59E-54ABAEB4EA9C} = {ABEDF3EB-5A3A-4E44-9863-7DBBF14E0579}
 		{1929EA4B-8984-4D1F-92B3-876191651F05} = {E9CD4EA6-2BE2-4A16-A6A9-5C2F626CB024}
+		{EB5BF494-40D5-45A8-B041-64AEAA65C27E} = {C4460ED9-A862-4D03-8D61-9B1CC81BCE13}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {CD58180A-6B4E-463B-B49A-B4E6748DDA0A}
