@@ -150,7 +150,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="HapticAudio.cpp" />
+    <ClCompile Include="Audio\AmplitudeModulation.cpp" />
+    <ClCompile Include="Audio\AudioFile.cpp" />
+    <ClCompile Include="HapticAudio.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Audio\AmplitudeModulation.h" />
+    <ClInclude Include="Audio\AudioFile.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

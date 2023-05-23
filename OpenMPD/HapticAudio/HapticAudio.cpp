@@ -1,137 +1,215 @@
-// HapticAudio.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
-
-
 #include <OpenMPD_Prerequisites.h>
 #include <OpenMPD_CWrapper.h>
+//#include <../SpeedTests_PBDEngine/Audio/AmplitudeModulation.h>
+#include <HapticAudio/Audio/AmplitudeModulation.h>
 #include <stdio.h>
 #include <conio.h>
-#include <math.h>
-#include <vector>
-#include <../Helper/TimeFunctions.h>
-#include <iostream>
-#include <sstream>
 #include <Windows.h>
 
-#define CL_TARGET_OPENCL_VERSION 300
-
+// prototypes
 void print(const char* msg) { printf("%s\n", msg); }
-void* client(void* arg, int curNumPoints, int frequency);
-float* createSampledArc(float origin[3], float p0[3], float angleInRads, cl_uint numSamples);
-int curFPS_Divider = 4;
-int curFreq = 20;
-int curNumPoints = 1;
+void* client(void* arg);
+void writeArrayToCSV(std::string fileName, float* data, int dataSize);
 
-
+// variables
+unsigned char curFPS_Divider = 4;
+cl_uint geometries = 32;
+cl_uint topBoard = NULL;
+cl_uint bottomBoard = 6;
+bool foceSync = true;
+bool phaseOnly = false;
+bool HW_Sync = true;
+// it must be a .wav file. this file should be stored on the LIBS_HOME/bin/x64
+std::string fileName = "Chirp100_5000";
+int numPrimitives = 1;
+float matToWorld[] = { 1,0,0,0,  0,1,0,0,   0,0,1,0,   0,0,0,1 };
 
 int main() {
-
-	OpenMPD_CWrapper_Initialize();
-	//OpenMPD_CWrapper_RegisterPrintFuncs(print, print, print);
-	OpenMPD_CWrapper_SetupEngine(2000000, OpenMPD::GSPAT_SOLVER::V2);
-	float matToWorld[] = { 1,0,0,0,  0,1,0,0,   0,0,1,0,   0,0,0,1 };
-	OpenMPD_Context_Handler  pm = OpenMPD_CWrapper_StartEngine_SingleBoard(curFPS_Divider, 32, 6, matToWorld, false);
-	OpenMPD_CWrapper_SetupPhaseOnly(true);
 	do {
-
-		printf("Press any key to change haptic parameters.\nPress SPACE BAR to Finish the application.\n");
-		client((void*)pm, curNumPoints, curFreq);
-		printf("Input number of points to use [1-32] (Current: %d)", curNumPoints);
-		//scanf("%d", &curNumPoints);
-		//printf("Input frequency [50-250] (Current: %d)", curFreq);
-		//scanf("%d", &curFreq);
-
-
+		do {
+			OpenMPD_CWrapper_Initialize();
+			OpenMPD_CWrapper_RegisterPrintFuncs(print, print, print);
+			OpenMPD_CWrapper_SetupEngine(2000000, OpenMPD::GSPAT_SOLVER::V2);
+			float matToWorld[] = { 1,0,0,0,  0,1,0,0,   0,0,1,0,   0,0,0,1 };
+			OpenMPD_Context_Handler  pm = OpenMPD_CWrapper_StartEngine_SingleBoard(curFPS_Divider, 32, 6, matToWorld, false);
+			//OpenMPD_Context_Handler pm = OpenMPD_CWrapper_StartEngine_SingleBoard(curFPS_Divider, geometries, bottomBoard, matToWorld, foceSync);
+			//OpenMPD_Context_Handler  pm = OpenMPD_CWrapper_StartEngine_TopBottom(curFPS_Divider, geometries, topBoard, bottomBoard, foceSync);
+			OpenMPD_CWrapper_SetupPhaseOnly(phaseOnly);
+			OpenMPD_CWrapper_SetupHardwareSync(HW_Sync);
+			client((void*)pm);
+			OpenMPD_CWrapper_StopEngine();
+			printf("Press any key to Restart the engine.\nPress SPACE BAR to Release current engine.");
+		} while (_getch() != ' ');
+		OpenMPD_CWrapper_Release();
+		printf("Engine Released (all structures destroyed).\nPress any key to Restart a new instance.\nPress SPACE BAR to finish program.");
 	} while (_getch() != ' ');
-	OpenMPD_CWrapper_StopEngine();
-	OpenMPD_CWrapper_Release();
-
 }
+//Client thread data
+const int MAX_PRIMITIVES = 16;
+cl_uint primitives[MAX_PRIMITIVES];
+cl_uint positions[MAX_PRIMITIVES];
+cl_uint amplitudes[MAX_PRIMITIVES], modulatedAmplitudes[MAX_PRIMITIVES];
+void declareContent(OpenMPD_Context_Handler pm);
+void destroyContent(OpenMPD_Context_Handler pm);
 
-void declareContent(OpenMPD_Context_Handler pm, int curNumPoints, int frequency);
-void destroyContent(OpenMPD_Context_Handler pm, int curNumPoints);
-
-void* client(void* arg, int curNumPoints, int frequency) {
+void* client(void* arg) {
 	OpenMPD_Context_Handler pm = (OpenMPD_Context_Handler)arg;
-	declareContent(pm, curNumPoints, frequency);
-	while (!_kbhit()) {
-		Sleep(1000);
+	declareContent(pm);
+	printf("Contents created. Press a key to finish.\n");
+	bool running = true;
+	static const size_t X_index = 3, Y_index = 7, Z_index = 11;
+	float* prevMat = new float[MAX_PRIMITIVES * 16];
+	float* curMat = new float[MAX_PRIMITIVES * 16];
+	//Each primitive's matrix is rotated around Z axis 
+	for (int p = 0; p < numPrimitives; p++) {
+		float matrix[] = { 1, 0, 0, 0,
+						   0, 1, 0, 0,
+						   0, 0, 1, 0,
+						   0, 0, 0, 1 };
+		memcpy(&(curMat[16 * p]), matrix, 16 * sizeof(float));
+		memcpy(&(prevMat[16 * p]), matrix, 16 * sizeof(float));
 	}
-	destroyContent(pm, curNumPoints);
+
+
+	while (running) {
+		//1. React to user's input
+		bool moved = false;
+		if (_kbhit())
+			switch (_getch()) {
+				//MOVE
+			case 'a':
+				moved = true;
+				for (int p = 0; p < numPrimitives; p++) {
+					prevMat[16 * p + X_index] = curMat[16 * p + X_index];
+					curMat[16 * p + X_index] += 0.001f;
+				}
+				break;
+
+			case 'd':
+				moved = true;
+				for (int p = 0; p < numPrimitives; p++) {
+					prevMat[16 * p + X_index] = curMat[16 * p + X_index];
+					curMat[16 * p + X_index] -= 0.001f;
+				}
+				break;
+			case 'w':
+				moved = true;
+				for (int p = 0; p < numPrimitives; p++) {
+					prevMat[16 * p + Y_index] = curMat[16 * p + Y_index];
+					curMat[16 * p + Y_index] += 0.001f;
+				}
+				break;
+			case 's':
+				moved = true;
+				for (int p = 0; p < numPrimitives; p++) {
+					prevMat[16 * p + Y_index] = curMat[16 * p + Y_index];
+					curMat[16 * p + Y_index] -= 0.001f;
+				}
+				break;
+			case 'r':
+				moved = true;
+				for (int p = 0; p < numPrimitives; p++) {
+					prevMat[16 * p + Z_index] = curMat[16 * p + Z_index];
+					curMat[16 * p + Z_index] += 0.0005f;
+				}
+				break;
+			case 'f':
+				moved = true;
+				for (int p = 0; p < numPrimitives; p++) {
+					prevMat[16 * p + Z_index] = curMat[16 * p + Z_index];
+					curMat[16 * p + Z_index] -= 0.0005f;
+				}
+				break;
+			case ' ':
+				printf("SPACE BAR pressed");
+				running = false;
+				break;
+				//CHANGE STATE
+			case '1':
+				printf("Start amplitude modulation!\n");
+				//OpenMPD_CWrapper_RegisterPrintFuncs(NULL, NULL, NULL);
+				for (int p = 0; p < numPrimitives; p++) {
+					OpenMPD_CWrapper_updatePrimitive_Amplitudes(pm, primitives[p], modulatedAmplitudes[0], 0);
+					//OpenMPD_CWrapper_updatePrimitive_Amplitudes(pm, primitives[p], amplitudes[0], 0);
+				}
+
+				OpenMPD_CWrapper_commitUpdates(pm);
+				//OpenMPD_CWrapper_RegisterPrintFuncs(print, print, print);
+				break;
+			}
+		//3. Update engine:
+		if (moved)
+			printf("(%f, %f, %f)\n", curMat[X_index], curMat[Y_index], curMat[Z_index]);
+		OpenMPD_CWrapper_update_HighLevel(pm, primitives, numPrimitives, prevMat, curMat/*, GSPAT::MatrixAlignment::RowMajorAlignment*/);
+	}
+	destroyContent(pm);
 	return NULL;
 }
 
-cl_uint* primitives;
-cl_uint posDescriptor;
-cl_uint ampDescriptor;
+void declareContent(OpenMPD_Context_Handler pm) {
+	// generate amplitud descriptors
+	float modulationIndex = 1.0f;		// from 0 to 1. you can get louder sound with a larger modulation index, but with less stable traps...
+	//float modulationIndex = 0.2f;		// from 0 to 1. you can get louder sound with a larger modulation index, but with less stable traps...
+	float maxAmplitudeInPascal = 20000;	// the maximum amplitude in pascal
 
-void declareContent(OpenMPD_Context_Handler pm, int curNumPoints, int frequency) {
-	float origin[] = { 0,0,0.12f }, startPoint1[] = { 0.025f,0,0.12f };
-	int numSamplesCircle = (int)40000 / (curFPS_Divider * frequency);
-	float* circle_data = createSampledArc(origin, startPoint1, (float)(2 * CL_M_PI), numSamplesCircle);
-	float amp_data = 1;
+	AmplitudeModulation am;
+	am.loadFile(fileName + ".wav");					// load the audio file (accepts only .wav files)
+	// if you don't want to do this resampling step every time (might take some time), you can save the resampled audio as a new file and use it for the next time
+	am.convertSampleRate(40000.f / (float)curFPS_Divider);		// resample the audio at the frame rate of the engine
+	am.modulateAmplitudeDSB(modulationIndex, maxAmplitudeInPascal);// modulate the amplitude to create the audio
+	////am.generateMultiFrequencyAudio()
+	////am.modulateAmplitudeSSB(modulationIndex, maxAmplitudeInPascal);// modulate the amplitude to create the audio
+	float* am_data;
 
-	//Create descriptors
-	posDescriptor = OpenMPD_CWrapper_createPositionsDescriptor(pm, circle_data, numSamplesCircle);
-	ampDescriptor = OpenMPD_CWrapper_createAmplitudesDescriptor(pm, &amp_data, 1);
+	// BEGIN DEBUG (200Hz at 10KHz requires 50 samples for a full sin cycle)
+	//float am_data [50];
+	//for (int s = 0; s < 50; s++)am_data[s] = maxAmplitudeInPascal * (0.5f + 0.5f * sinf((2.0f * M_PI * s) / 50.0f));
+	//size_t sizeAM = 50;
+	//END dEBUG
+
+	size_t sizeAM = am.fillBuffer(&am_data);					// fill the amplitude buffer
+	//writeArrayToCSV(fileName, am_data, sizeAM);
+	float a_data[] = { maxAmplitudeInPascal };
+	float p_data0[] = { 0.00f, 0, 0.12f, 1 };		// centre of the system
+	float p_data1[] = { -0.02f, 0, 0.12f, 1 };		// centre of the system
+	float p_data2[] = { 0.02f, 0, 0.12f, 1 };		// centre of the system
+
+	for (int p = 0; p < numPrimitives; p++) {
+		float p_data[] = { -0.02 + ((float)p * 0.02f), 0, 0.12f, 1 };		// centre of the system
+		float a_data[] = { maxAmplitudeInPascal };
+		//Create descriptors
+		positions[p] = OpenMPD_CWrapper_createPositionsDescriptor(pm, p_data, 1);
+		amplitudes[p] = OpenMPD_CWrapper_createAmplitudesDescriptor(pm, a_data, 1);
+		modulatedAmplitudes[p] = OpenMPD_CWrapper_createAmplitudesDescriptor(pm, am_data, sizeAM);
+	}
+
 	//Create Primitives
-	primitives = new cl_uint[curNumPoints];
-	float* primitiveMatrices = new float[16 * curNumPoints];
-	for (int p = 0; p < curNumPoints; p++) {
-		primitives[p] = OpenMPD_CWrapper_declarePrimitive(pm, posDescriptor, ampDescriptor);
+	for (int p = 0; p < numPrimitives; p++) {
+		primitives[p] = OpenMPD_CWrapper_declarePrimitive(pm, positions[p], amplitudes[p]);
+		OpenMPD_CWrapper_commitUpdates(pm);
 		OpenMPD_CWrapper_setPrimitiveEnabled(pm, primitives[p], true);
-		//ALL PRIMITIVES ARE EQUAL, BUT THEY ARE ROTATED ALONG THE VERTICAL AXIS (i.e., they start from a different angle in the circle). 
-		float rotation = (float)(2 * p * CL_M_PI / curNumPoints);
-		float mat[] = { cosf(rotation), sinf(rotation), 0, 0,
-						-sinf(rotation), cosf(rotation), 0, 0,
-						0,0,1,0,
-						0,0,0,1 };
-		memcpy(&(primitiveMatrices[16 * p]), mat, 16 * sizeof(float));
+		OpenMPD_CWrapper_commitUpdates(pm);
 	}
-
-	OpenMPD_CWrapper_commitUpdates(pm);
-	OpenMPD_CWrapper_update_HighLevel(pm, primitives, curNumPoints, primitiveMatrices, primitiveMatrices/*, GSPAT::MatrixAlignment::RowMajorAlignment*/);
+	//delete am_data;
 }
 
-void destroyContent(OpenMPD_Context_Handler pm, int curNumPoints) {
-	//Disable all primitives.
-	for (int p = 0; p < curNumPoints; p++) {
-		OpenMPD_CWrapper_setPrimitiveEnabled(pm, primitives[p], false);
+void writeArrayToCSV(std::string fileName, float* data, int dataSize) {
+	std::ofstream out(fileName + ".csv");
+
+	for (int i = 0; i < dataSize; i++) {
+		float val = *(data + i);
+		out << val << ',';
+		out << '\n';
 	}
-	OpenMPD_CWrapper_commitUpdates(pm);
-	//Destroy all primitives:
-	for (int p = 0; p < curNumPoints; p++)
+	out.close();
+}
+
+void destroyContent(OpenMPD_Context_Handler pm) {
+	//Destroy primitives:
+	for (int p = 0; p < numPrimitives; p++) {
 		OpenMPD_CWrapper_releasePrimitive(pm, primitives[p]);
-	OpenMPD_CWrapper_releasePositionsDescriptor(pm, posDescriptor);
-	OpenMPD_CWrapper_releaseAmplitudesDescriptor(pm, ampDescriptor);
-}
-
-float* createSampledArc(float origin[3], float p0[3], float angleInRads, cl_uint numSamples) {
-	//static float buffer[4 * 8];
-	float* buffer = new float[numSamples * 4];
-	float radius[] = { p0[0] - origin[0], p0[1] - origin[1], p0[2] - origin[2] };
-	float curP[4];
-	//Fill in all the samples:
-	for (int s = 0; s < numSamples; s++) {
-		float curAngle = (s * angleInRads) / numSamples;
-		curP[0] = cosf(curAngle) * radius[0] - sinf(curAngle) * radius[1] + origin[0];
-		curP[1] = sinf(curAngle) * radius[0] + cosf(curAngle) * radius[1] + origin[1];
-		curP[2] = origin[2];
-		curP[3] = 1;
-		memcpy(&(buffer[4 * s]), curP, 4 * sizeof(float));
+		OpenMPD_CWrapper_releasePositionsDescriptor(pm, positions[p]);
+		OpenMPD_CWrapper_releaseAmplitudesDescriptor(pm, amplitudes[p]);
+		OpenMPD_CWrapper_releaseAmplitudesDescriptor(pm, modulatedAmplitudes[p]);
 	}
-	return buffer;
 }
-
-
-
-// Run program: Ctrl + F5 or Debug > Start Without Debugging menu
-// Debug program: F5 or Debug > Start Debugging menu
-
-// Tips for Getting Started: 
-//   1. Use the Solution Explorer window to add/manage files
-//   2. Use the Team Explorer window to connect to source control
-//   3. Use the Output window to see build output and other messages
-//   4. Use the Error List window to view errors
-//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
-//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file
